@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
-const testRoutes = require('./routes/test');
+const caseRoutes = require('./routes/case');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -22,7 +22,7 @@ app.get('/', (req, res) => {
 });
 
 // API 路由
-app.use('/api/test', testRoutes);
+app.use('/api/cases', caseRoutes);
 
 // 啟動服務器
 app.listen(port, () => {

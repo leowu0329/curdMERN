@@ -63,7 +63,6 @@ const caseSchema = new mongoose.Schema(
     inspector: {
       type: String,
       enum: ['', '吳小男', '謝小宸', '黃小瀅', '蔡小函', '徐小棉', '杜小綾'],
-      required: true,
       default: '',
     },
     defectCategory: {

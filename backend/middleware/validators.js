@@ -1,121 +1,196 @@
-const { body, validationResult } = require('express-validator');
+const { body, validationResult, param, query } = require('express-validator');
+const {
+  handleValidationResultError,
+  validateRequest,
+} = require('./errorHandler');
 
-// 驗證結果處理中間件
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-  next();
+// 通用驗證規則
+const commonValidations = {
+  id: param('id').isMongoId().withMessage('無效的ID格式'),
+  page: query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('頁碼必須是正整數'),
+  limit: query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('每頁數量必須在1-100之間'),
 };
 
-// 案例驗證規則
-const caseValidationRules = [
-  // 首件巡檢
-  body('inspectionType')
-    .isIn(['首件', '巡檢'])
-    .withMessage('首件巡檢必須是「首件」或「巡檢」'),
+// 驗證中間件
+const validate = (validations) => {
+  return async (req, res, next) => {
+    await Promise.all(validations.map((validation) => validation.run(req)));
 
-  // 內/外銷
-  body('marketType')
-    .isIn(['內銷', '外銷'])
-    .withMessage('內/外銷必須是「內銷」或「外銷」'),
+    const errors = validationResult(req);
+    if (errors.isEmpty()) {
+      return next();
+    }
 
-  // 客戶
-  body('customer')
-    .notEmpty()
-    .withMessage('客戶不能為空')
-    .isString()
-    .withMessage('客戶必須是字串'),
+    next(handleValidationResultError(errors));
+  };
+};
 
-  // 部門
-  body('department')
-    .isIn(['', '塑膠射出課', '射出加工組', '機械加工課'])
-    .withMessage('部門必須是有效的選項'),
+// 檢驗案件驗證規則
+const caseValidations = {
+  create: [
+    body('inspectionType')
+      .isIn(['首件', '巡檢'])
+      .withMessage('檢驗類型必須是首件或巡檢'),
+    body('marketType')
+      .isIn(['內銷', '外銷'])
+      .withMessage('市場類型必須是內銷或外銷'),
+    body('customer').notEmpty().withMessage('客戶名稱不能為空'),
+    body('department')
+      .isIn(['', '塑膠射出課', '射出加工組', '機械加工課'])
+      .withMessage('部門選擇無效'),
+    body('date').isISO8601().withMessage('日期格式無效'),
+    body('time').notEmpty().withMessage('時間不能為空'),
+    body('workOrder').optional().isString().withMessage('工單號碼必須是字串'),
+    body('operator').optional().isString().withMessage('操作員必須是字串'),
+    body('drawingVersion')
+      .optional()
+      .isString()
+      .withMessage('圖面版本必須是字串'),
+    body('productNumber').notEmpty().withMessage('產品編號不能為空'),
+    body('productName').notEmpty().withMessage('產品名稱不能為空'),
+    body('quantity').isInt({ min: 0 }).withMessage('數量必須是非負整數'),
+    body('inspector')
+      .isIn(['', '吳小男', '謝小宸', '黃小瀅', '蔡小函', '徐小棉', '杜小綾'])
+      .withMessage('檢驗員選擇無效'),
+    body('defectCategory')
+      .isIn([
+        '',
+        '無圖面',
+        '圖物不符',
+        '無工單',
+        '無檢驗表單',
+        '尺寸NG',
+        '外觀NG',
+      ])
+      .withMessage('不良類別選擇無效'),
+    body('defectDescription')
+      .optional()
+      .isString()
+      .withMessage('不良描述必須是字串'),
+    body('solution').optional().isString().withMessage('解決方案必須是字串'),
+    body('inspectionHours')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('檢驗時數必須是非負數'),
+  ],
+  update: [
+    commonValidations.id,
+    body('inspectionType')
+      .optional()
+      .isIn(['首件', '巡檢'])
+      .withMessage('檢驗類型必須是首件或巡檢'),
+    body('marketType')
+      .optional()
+      .isIn(['內銷', '外銷'])
+      .withMessage('市場類型必須是內銷或外銷'),
+    body('customer').optional().notEmpty().withMessage('客戶名稱不能為空'),
+    body('department')
+      .optional()
+      .isIn(['', '塑膠射出課', '射出加工組', '機械加工課'])
+      .withMessage('部門選擇無效'),
+    body('date').optional().isISO8601().withMessage('日期格式無效'),
+    body('time').optional().notEmpty().withMessage('時間不能為空'),
+    body('workOrder').optional().isString().withMessage('工單號碼必須是字串'),
+    body('operator').optional().isString().withMessage('操作員必須是字串'),
+    body('drawingVersion')
+      .optional()
+      .isString()
+      .withMessage('圖面版本必須是字串'),
+    body('productNumber').optional().notEmpty().withMessage('產品編號不能為空'),
+    body('productName').optional().notEmpty().withMessage('產品名稱不能為空'),
+    body('quantity')
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage('數量必須是非負整數'),
+    body('inspector')
+      .optional()
+      .isIn(['', '吳小男', '謝小宸', '黃小瀅', '蔡小函', '徐小棉', '杜小綾'])
+      .withMessage('檢驗員選擇無效'),
+    body('defectCategory')
+      .optional()
+      .isIn([
+        '',
+        '無圖面',
+        '圖物不符',
+        '無工單',
+        '無檢驗表單',
+        '尺寸NG',
+        '外觀NG',
+      ])
+      .withMessage('不良類別選擇無效'),
+    body('defectDescription')
+      .optional()
+      .isString()
+      .withMessage('不良描述必須是字串'),
+    body('solution').optional().isString().withMessage('解決方案必須是字串'),
+    body('inspectionHours')
+      .optional()
+      .isFloat({ min: 0 })
+      .withMessage('檢驗時數必須是非負數'),
+  ],
+  getById: [commonValidations.id],
+  delete: [commonValidations.id],
+  list: [
+    commonValidations.page,
+    commonValidations.limit,
+    query('inspectionType')
+      .optional()
+      .isIn(['首件', '巡檢'])
+      .withMessage('檢驗類型必須是首件或巡檢'),
+    query('marketType')
+      .optional()
+      .isIn(['內銷', '外銷'])
+      .withMessage('市場類型必須是內銷或外銷'),
+    query('department')
+      .optional()
+      .isIn(['', '塑膠射出課', '射出加工組', '機械加工課'])
+      .withMessage('部門選擇無效'),
+    query('inspector')
+      .optional()
+      .isIn(['', '吳小男', '謝小宸', '黃小瀅', '蔡小函', '徐小棉', '杜小綾'])
+      .withMessage('檢驗員選擇無效'),
+    query('defectCategory')
+      .optional()
+      .isIn([
+        '',
+        '無圖面',
+        '圖物不符',
+        '無工單',
+        '無檢驗表單',
+        '尺寸NG',
+        '外觀NG',
+      ])
+      .withMessage('不良類別選擇無效'),
+    query('startDate').optional().isISO8601().withMessage('開始日期格式無效'),
+    query('endDate').optional().isISO8601().withMessage('結束日期格式無效'),
+  ],
+};
 
-  // 日期
-  body('date')
-    .notEmpty()
-    .withMessage('日期不能為空')
-    .isDate()
-    .withMessage('日期格式無效'),
-
-  // 時間
-  body('time')
-    .notEmpty()
-    .withMessage('時間不能為空')
-    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/)
-    .withMessage('時間格式必須是 HH:mm'),
-
-  // 製令編號
-  body('workOrder').optional().isString().withMessage('製令編號必須是字串'),
-
-  // 作業人員
-  body('operator').optional().isString().withMessage('作業人員必須是字串'),
-
-  // 圖面版次
-  body('drawingVersion')
-    .optional()
-    .isString()
-    .withMessage('圖面版次必須是字串'),
-
-  // 品號
-  body('productNumber')
-    .notEmpty()
-    .withMessage('品號不能為空')
-    .isString()
-    .withMessage('品號必須是字串'),
-
-  // 品名
-  body('productName')
-    .notEmpty()
-    .withMessage('品名不能為空')
-    .isString()
-    .withMessage('品名必須是字串'),
-
-  // 數量
-  body('quantity')
-    .notEmpty()
-    .withMessage('數量不能為空')
-    .isInt({ min: 0 })
-    .withMessage('數量必須是非負整數'),
-
-  // 巡檢員
-  body('inspector')
-    .isIn(['', '吳小男', '謝小宸', '黃小瀅', '蔡小函', '徐小棉', '杜小綾'])
-    .withMessage('巡檢員必須是有效的選項'),
-
-  // 不良分類
-  body('defectCategory')
-    .optional()
-    .isIn([
-      '',
-      '無圖面',
-      '圖物不符',
-      '無工單',
-      '無檢驗表單',
-      '尺寸NG',
-      '外觀NG',
-    ])
-    .withMessage('不良分類必須是有效的選項'),
-
-  // 不良狀況
-  body('defectDescription')
-    .optional()
-    .isString()
-    .withMessage('不良狀況必須是字串'),
-
-  // 處置對策
-  body('solution').optional().isString().withMessage('處置對策必須是字串'),
-
-  // 檢驗工時
-  body('inspectionHours')
-    .optional()
-    .isFloat({ min: 0, max: 24 })
-    .withMessage('檢驗工時必須是 0-24 之間的小數'),
-];
+// 測試相關驗證規則
+const testValidations = {
+  create: [
+    body('name').notEmpty().withMessage('名稱不能為空'),
+    body('description').optional().isString().withMessage('描述必須是字串'),
+  ],
+  update: [
+    commonValidations.id,
+    body('name').optional().notEmpty().withMessage('名稱不能為空'),
+    body('description').optional().isString().withMessage('描述必須是字串'),
+  ],
+  getById: [commonValidations.id],
+  delete: [commonValidations.id],
+  list: [commonValidations.page, commonValidations.limit],
+};
 
 module.exports = {
   validate,
-  caseValidationRules,
+  caseValidations,
+  testValidations,
+  validateRequest,
 };

@@ -1,3 +1,5 @@
+const { validationResult } = require('express-validator');
+
 // 自定義錯誤類
 class AppError extends Error {
   constructor(message, statusCode) {
@@ -28,6 +30,33 @@ const handleValidationError = (err) => {
 const handleCastError = (err) => {
   const message = `無效的 ${err.path}: ${err.value}`;
   return new AppError(message, 400);
+};
+
+// 處理驗證錯誤
+const handleValidationResultError = (errors) => {
+  const message = errors
+    .array()
+    .map((err) => `${err.msg}`)
+    .join(', ');
+  return new AppError(message, 400);
+};
+
+// 驗證請求中間件
+const validateRequest = (validations) => {
+  return async (req, res, next) => {
+    try {
+      await Promise.all(validations.map((validation) => validation.run(req)));
+
+      const errors = validationResult(req);
+      if (errors.isEmpty()) {
+        return next();
+      }
+
+      return next(handleValidationResultError(errors));
+    } catch (error) {
+      next(error);
+    }
+  };
 };
 
 // 開發環境錯誤處理
@@ -87,4 +116,6 @@ module.exports = {
   AppError,
   errorHandler,
   notFoundHandler,
+  handleValidationResultError,
+  validateRequest,
 };

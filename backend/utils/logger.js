@@ -1,9 +1,5 @@
-require('dotenv').config();
-const app = require('./app');
-const connectDB = require('./config/db');
 const winston = require('winston');
 
-// 配置 winston 日誌
 const logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -24,12 +20,4 @@ if (process.env.NODE_ENV !== 'production') {
   );
 }
 
-const port = process.env.PORT || 5000;
-
-// 連接數據庫
-connectDB();
-
-// 啟動服務器
-app.listen(port, () => {
-  logger.info(`Server is running on http://localhost:${port}`);
-});
+module.exports = logger;
